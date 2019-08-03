@@ -413,6 +413,10 @@ def test_advanced_exclude():
         'f': {'d': [{'a': 'a', 'b': 'b'}, {'b': 'e'}]},
     }
     assert m.dict(exclude={'e': ..., 'f': {'d'}}) == {'f': {'c': 'foo'}}
+    assert m.dict(exclude={'f': {'c': ..., 'd': {...: {'a'}}}}) == {'e': 'e', 'f': {'d': [{'b': 'b'}, {'b': 'e'}]}}
+    assert m.dict(exclude={'e': ..., 'f': {'c': ..., 'd': {...: {'a'}, -1: {}}}}) == {
+        'f': {'d': [{'b': 'b'}, {'a': 'c', 'b': 'e'}]}
+    }
 
 
 def test_advanced_value_inclide():
@@ -433,6 +437,8 @@ def test_advanced_value_inclide():
     assert m.dict(include={'f'}) == {'f': {'c': 'foo', 'd': [{'a': 'a', 'b': 'b'}, {'a': 'c', 'b': 'e'}]}}
     assert m.dict(include={'e'}) == {'e': 'e'}
     assert m.dict(include={'f': {'d': {0: ..., -1: {'b'}}}}) == {'f': {'d': [{'a': 'a', 'b': 'b'}, {'b': 'e'}]}}
+    assert m.dict(include={'f': {'d': {...: {'a'}}}}) == {'f': {'d': [{'a': 'a'}, {'a': 'c'}]}}
+    assert m.dict(include={'f': {'d': {...: {'a'}, -1: {}}}}) == {'f': {'d': [{'a': 'a'}, {}]}}
 
 
 def test_advanced_value_exclude_include():

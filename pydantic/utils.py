@@ -390,7 +390,10 @@ class ValueItems:
             raise TypeError(f'Unexpected type of exclude value {type(items)}')
 
         if isinstance(value, (list, tuple)):
-            items = self._normalize_indexes(items, len(value))
+            if ... in items:
+                items = self._expand_indexes(items, len(value))
+            else:
+                items = self._normalize_indexes(items, len(value))
 
         self._items = items
 
@@ -443,6 +446,26 @@ class ValueItems:
             return {v_length + i if i < 0 else i for i in items}
         else:
             return {v_length + i if i < 0 else i: v for i, v in items.items()}
+
+    @no_type_check
+    def _expand_indexes(
+        self, items: Union['SetIntStr', 'DictIntStrAny'], v_length: int
+    ) -> Union['SetIntStr', 'DictIntStrAny']:
+        """
+
+        :param items: dict or set containing ... representing all indexes of value
+            and/or additional indexes which will update value of ...
+        :param v_length: length of sequence indexes of which will be
+
+        >>> self._expand_indexes({...: {'a'}, -1: {'b'}}, 4)
+        {0: {'a'}, 1: {'a'}, 2: {'a'}, 3: {'b}}
+        """
+
+        if self._type is set:
+            return set(range(v_length))
+        else:
+            v_items = items.pop(...)
+            return {**{i: v_items for i in range(v_length)}, **self._normalize_indexes(items, v_length)}
 
     def __str__(self) -> str:
         return f'{self.__class__.__name__}: {self._type.__name__}({self._items})'
