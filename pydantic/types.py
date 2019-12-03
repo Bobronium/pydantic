@@ -113,8 +113,6 @@ if TYPE_CHECKING:
 
     class PydanticType(Generic[T]):
         __expected_type__: T
-        inherit: Callable[..., PydanticTypeMeta]
-
 
 else:
 
