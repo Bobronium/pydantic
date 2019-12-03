@@ -1,10 +1,24 @@
 import re
 import warnings
 from decimal import Decimal
-from enum import Enum
+from enum import Enum, EnumMeta
 from pathlib import Path
 from types import new_class
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Pattern, Type, TypeVar, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Pattern,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 from uuid import UUID
 
 from . import errors
@@ -76,6 +90,7 @@ OptionalInt = Optional[int]
 OptionalIntFloat = Union[OptionalInt, float]
 OptionalIntFloatDecimal = Union[OptionalIntFloat, Decimal]
 StrIntFloat = Union[str, int, float]
+StrLike = Union[bytes, StrIntFloat, Decimal, Enum]
 
 if TYPE_CHECKING:
     from .dataclasses import DataclassType  # noqa: F401
@@ -84,8 +99,32 @@ if TYPE_CHECKING:
 
     ModelOrDc = Type[Union['BaseModel', 'DataclassType']]
 
+T = TypeVar('T')
 
-class ConstrainedBytes(bytes):
+
+class PydanticTypeMeta(type):
+    __expected_type__: AnyType
+
+    def __getitem__(cls, t: AnyType) -> Type['PydanticType']:  # type: ignore
+        if isinstance(t, tuple):
+            t = Union[t]
+        return type(f'PydanticType[{t}]', (cls,), {'__expected_type__': t})
+
+
+if TYPE_CHECKING:
+
+    class PydanticType(Generic[T]):
+        __expected_type__: T
+        inherit: Callable[..., PydanticTypeMeta]
+
+
+else:
+
+    class PydanticType(metaclass=PydanticTypeMeta):
+        __expected_types__: AnyType
+
+
+class ConstrainedBytes(bytes, PydanticType[StrLike]):
     strip_whitespace = False
     min_length: OptionalInt = None
     max_length: OptionalInt = None
@@ -103,11 +142,8 @@ def conbytes(*, strip_whitespace: bool = False, min_length: int = None, max_leng
     return type('ConstrainedBytesValue', (ConstrainedBytes,), namespace)
 
 
-T = TypeVar('T')
-
-
 # This types superclass should be List[T], but cython chokes on that...
-class ConstrainedList(list):  # type: ignore
+class ConstrainedList(list, PydanticType[Union[list, set, tuple, frozenset]]):  # type: ignore
     # Needed for pydantic to detect that this is a list
     __origin__ = list
     __args__: List[Type[T]]  # type: ignore
@@ -141,7 +177,7 @@ def conlist(item_type: Type[T], *, min_items: int = None, max_items: int = None)
     return new_class('ConstrainedListValue', (ConstrainedList,), {}, lambda ns: ns.update(namespace))
 
 
-class ConstrainedStr(str):
+class ConstrainedStr(str, PydanticType[StrLike]):
     strip_whitespace = False
     min_length: OptionalInt = None
     max_length: OptionalInt = None
@@ -189,7 +225,7 @@ def constr(
     return type('ConstrainedStrValue', (ConstrainedStr,), namespace)
 
 
-class StrictStr(ConstrainedStr):
+class StrictStr(ConstrainedStr, PydanticType[str]):
     strict = True
 
 
@@ -197,7 +233,7 @@ if TYPE_CHECKING:
     StrictBool = bool
 else:
 
-    class StrictBool(int):
+    class StrictBool(int, PydanticType[bool]):
         """
         StrictBool to allow for bools which are not type-coerced.
         """
@@ -217,7 +253,7 @@ else:
             raise errors.StrictBoolError()
 
 
-class PyObject:
+class PyObject(PydanticType[Union[StrLike, Callable[..., Any]]]):
     validate_always = True
 
     @classmethod
@@ -240,7 +276,7 @@ class PyObject:
             raise errors.PyObjectError(error_message=str(e))
 
 
-class ConstrainedNumberMeta(type):
+class ConstrainedNumberMeta(PydanticTypeMeta):
     def __new__(cls, name: str, bases: Any, dct: Dict[str, Any]) -> 'ConstrainedInt':  # type: ignore
         new_cls = cast('ConstrainedInt', type.__new__(cls, name, bases, dct))
 
@@ -252,7 +288,7 @@ class ConstrainedNumberMeta(type):
         return new_cls
 
 
-class ConstrainedInt(int, metaclass=ConstrainedNumberMeta):
+class ConstrainedInt(int, PydanticType[StrIntFloat], metaclass=ConstrainedNumberMeta):
     strict: bool = False
     gt: OptionalInt = None
     ge: OptionalInt = None
@@ -262,7 +298,6 @@ class ConstrainedInt(int, metaclass=ConstrainedNumberMeta):
 
     @classmethod
     def __get_validators__(cls) -> 'CallableGenerator':
-
         yield strict_int_validator if cls.strict else int_validator
         yield number_size_validator
         yield number_multiple_validator
@@ -284,11 +319,11 @@ class NegativeInt(ConstrainedInt):
     lt = 0
 
 
-class StrictInt(ConstrainedInt):
+class StrictInt(ConstrainedInt, PydanticType[int]):
     strict = True
 
 
-class ConstrainedFloat(float, metaclass=ConstrainedNumberMeta):
+class ConstrainedFloat(float, PydanticType[StrIntFloat], metaclass=ConstrainedNumberMeta):
     strict: bool = False
     gt: OptionalIntFloat = None
     ge: OptionalIntFloat = None
@@ -325,11 +360,11 @@ class NegativeFloat(ConstrainedFloat):
     lt = 0
 
 
-class StrictFloat(ConstrainedFloat):
+class StrictFloat(ConstrainedFloat, PydanticType[float]):
     strict = True
 
 
-class ConstrainedDecimal(Decimal, metaclass=ConstrainedNumberMeta):
+class ConstrainedDecimal(Decimal, PydanticType[Union[StrIntFloat, Decimal]], metaclass=ConstrainedNumberMeta):
     gt: OptionalIntFloatDecimal = None
     ge: OptionalIntFloatDecimal = None
     lt: OptionalIntFloatDecimal = None
@@ -399,23 +434,23 @@ def condecimal(
     return type('ConstrainedDecimalValue', (ConstrainedDecimal,), namespace)
 
 
-class UUID1(UUID):
+class UUID1(UUID, PydanticType[Union[str, int, bytes, bytearray]]):
     _required_version = 1
 
 
-class UUID3(UUID):
+class UUID3(UUID, PydanticType[Union[str, int, bytes, bytearray]]):
     _required_version = 3
 
 
-class UUID4(UUID):
+class UUID4(UUID, PydanticType[Union[str, int, bytes, bytearray]]):
     _required_version = 4
 
 
-class UUID5(UUID):
+class UUID5(UUID, PydanticType[Union[str, int, bytes, bytearray]]):
     _required_version = 5
 
 
-class FilePath(Path):
+class FilePath(Path, PydanticType[Union[str, Path]]):
     @classmethod
     def __get_validators__(cls) -> 'CallableGenerator':
         yield path_validator
@@ -430,7 +465,7 @@ class FilePath(Path):
         return value
 
 
-class DirectoryPath(Path):
+class DirectoryPath(Path, PydanticType[Union[str, Path]]):
     @classmethod
     def __get_validators__(cls) -> 'CallableGenerator':
         yield path_validator
@@ -449,16 +484,16 @@ class JsonWrapper:
     pass
 
 
-class JsonMeta(type):
-    def __getitem__(self, t: AnyType) -> Type[JsonWrapper]:
-        return type('JsonWrapperValue', (JsonWrapper,), {'inner_type': t})
+class JsonMeta(PydanticTypeMeta):
+    def __getitem__(self, t: AnyType) -> Type[JsonWrapper]:  # type: ignore
+        return type('JsonWrapperValue', (PydanticType[Any], JsonWrapper), {'inner_type': t})
 
 
-class Json(metaclass=JsonMeta):
+class Json(PydanticType[Any], metaclass=JsonMeta):
     pass
 
 
-class SecretStr:
+class SecretStr(PydanticType[StrLike]):
     @classmethod
     def __get_validators__(cls) -> 'CallableGenerator':
         yield str_validator
@@ -485,7 +520,7 @@ class SecretStr:
         return self._secret_value
 
 
-class SecretBytes:
+class SecretBytes(PydanticType[StrLike]):
     @classmethod
     def __get_validators__(cls) -> 'CallableGenerator':
         yield bytes_validator
@@ -512,7 +547,11 @@ class SecretBytes:
         return self._secret_value
 
 
-class PaymentCardBrand(Enum):
+class PydanticTypeEnumMeta(PydanticTypeMeta, EnumMeta):  # type: ignore
+    ...
+
+
+class PaymentCardBrand(PydanticType[StrLike], Enum, metaclass=PydanticTypeEnumMeta):
     amex = 'American Express'
     mastercard = 'Mastercard'
     visa = 'Visa'
@@ -522,7 +561,7 @@ class PaymentCardBrand(Enum):
         return self.value
 
 
-class PaymentCardNumber(str):
+class PaymentCardNumber(str, PydanticType[StrLike]):
     """
     Based on: https://en.wikipedia.org/wiki/Payment_card_number
     """
@@ -629,7 +668,7 @@ BYTE_SIZES.update({k.lower()[0]: v for k, v in BYTE_SIZES.items() if 'i' not in 
 byte_string_re = re.compile(r'^\s*(\d*\.?\d+)\s*(\w+)?', re.IGNORECASE)
 
 
-class ByteSize(int):
+class ByteSize(int, PydanticType[StrIntFloat]):
     @classmethod
     def __get_validators__(cls) -> 'CallableGenerator':
         yield cls.validate
