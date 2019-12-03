@@ -106,8 +106,6 @@ class PydanticTypeMeta(type):
     __expected_type__: AnyType
 
     def __getitem__(cls, t: AnyType) -> Type['PydanticType']:  # type: ignore
-        if isinstance(t, tuple):
-            t = Union[t]
         return type(f'PydanticType[{t}]', (cls,), {'__expected_type__': t})
 
 
@@ -121,7 +119,7 @@ if TYPE_CHECKING:
 else:
 
     class PydanticType(metaclass=PydanticTypeMeta):
-        __expected_types__: AnyType
+        __expected_type__: AnyType
 
 
 class ConstrainedBytes(bytes, PydanticType[StrLike]):
