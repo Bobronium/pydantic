@@ -4,7 +4,7 @@ flake8-quotes==3.2.0
 mkdocs==1.1.2
 markdown==3.3.1
 mkdocs-exclude==1.0.2
-mkdocs-material==6.1.0
+mkdocs-material==6.1.6
 markdown-include==0.6.0
 pygments==2.7.1
 sqlalchemy   # pyup: ignore
