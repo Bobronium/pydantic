@@ -9,6 +9,6 @@ isort
 pydantic-core
 pyupgrade
 # pinned, see #4735
-mypy==0.982
+mypy==0.991
 pre-commit
 ruff

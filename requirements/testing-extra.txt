@@ -10,8 +10,6 @@ attrs==22.1.0
     # via hypothesis
 devtools==0.9.0
     # via -r requirements/testing-extra.in
-exceptiongroup==1.0.1
-    # via hypothesis
 executing==0.10.0
     # via devtools
 hypothesis==6.56.4
@@ -24,7 +22,5 @@ six==1.16.0
     # via asttokens
 sortedcontainers==2.4.0
     # via hypothesis
-tomli==2.0.1
-    # via mypy
 typing-extensions==4.4.0
     # via mypy
