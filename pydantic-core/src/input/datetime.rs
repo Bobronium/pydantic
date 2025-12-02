@@ -739,7 +739,7 @@ impl TzInfo {
         }
     }
 
-    fn __deepcopy__(&self, py: Python, _memo: &Bound<'_, PyDict>) -> PyResult<Py<Self>> {
+    fn __deepcopy__(&self, py: Python, _memo: &Bound<'_, PyAny>) -> PyResult<Py<Self>> {
         Py::new(py, self.clone())
     }
 
